@@ -5,6 +5,7 @@
 //  Created by Олег Переплётчиков on 02.08.2025.
 //
 import SwiftUI
+import Foundation
 
 func clearText(in text: Binding<String>)    {
     text.wrappedValue = "0"
@@ -72,11 +73,14 @@ func checkError (text: Binding<String>) -> Bool {
 }
 
 func resultValue (text: Binding<String>) {
-    
-    
-    
-    
-    
-    text.wrappedValue = "0"
+    let expressionString = text.wrappedValue
+        .replacingOccurrences(of: "×", with: "*")
+        .replacingOccurrences(of: "÷", with: "/")
+    let expression = NSExpression(format: expressionString)
+    if let value = expression.expressionValue(with: nil, context: nil) as? NSNumber {
+        text.wrappedValue = value.stringValue
+    } else {
+        text.wrappedValue = "Error"
+    }
 }
 

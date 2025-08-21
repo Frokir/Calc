@@ -7,106 +7,108 @@
 
 import SwiftUI
 
-enum TipicalButtonStyle {
-    case TitleOnly
-    case TitleAndIcon
+// Button style with press animation
+struct PressableButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+            .opacity(configuration.isPressed ? 0.8 : 1.0)
+    }
 }
 
-//Структура описывающая типовую кнопку
-
+// Generic calculator button
 struct TipicalButton: View {
     var text: String
     var action: () -> Void = {}
-    var color : Color = .blue
-    var myLabelStyle: TipicalButtonStyle = .TitleOnly
-    var iconName: String? = nil
-    
-       
+    var color: Color = .gray
+
     var body: some View {
         Button(action: action) {
             Text(text)
-                .foregroundColor(.white)
                 .font(.title2)
-                .frame(width: 70, height: 70)
-                .background(color)
-                .clipShape(.circle)
-                //.labelStyle(.titleOnly)
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(color)
+                        .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
+                )
         }
-        .frame(width: 50, height: 50)
-        .contentShape(Circle())
-        .padding(10)
-        
+        .buttonStyle(PressableButtonStyle())
     }
 }
 
-
-//Основное тело программы
-
+// Main screen
 struct ContentView: View {
-    @State var mainText: String = "0"
-    
+    @State private var mainText: String = "0"
+
+    private let buttons: [[String]] = [
+        ["AC", "(", ")", "⌫"],
+        ["7", "8", "9", "/"],
+        ["4", "5", "6", "*"],
+        ["1", "2", "3", "-"],
+        ["0", ".", "=", "+"]
+    ]
 
     var body: some View {
-        VStack {
-            Spacer()
-            HStack{
-                Spacer()
-                
-                Text(mainText)
-                    .padding()
+        GeometryReader { geometry in
+            VStack(spacing: 0) {
+                HStack {
+                    Spacer()
+                    Text(mainText)
+                        .font(.largeTitle)
+                        .padding()
+                }
+                .frame(height: geometry.size.height / 2)
+
+                VStack(spacing: 0) {
+                    ForEach(buttons, id: \.self) { row in
+                        HStack(spacing: 0) {
+                            ForEach(row, id: \.self) { item in
+                                TipicalButton(text: item,
+                                              action: { handleButton(item) },
+                                              color: colorFor(item))
+                                    .frame(width: geometry.size.width / 4,
+                                           height: geometry.size.height / 10)
+                            }
+                        }
+                    }
+                }
+                .frame(height: geometry.size.height / 2)
             }
-            
-            VStack {
-                HStack
-                {
-                    TipicalButton(text: "AC", action: {clearText(in: $mainText)})
-                    TipicalButton(text: "(", action: {addValue(addText: "(", to: $mainText)})
-                    TipicalButton(text: ")", action: {addValue(addText: ")", to: $mainText)})
-                    TipicalButton(text: "backspace", action: {myDropLast(in: $mainText)})
-                    
-                }
-                HStack
-                {
-                    TipicalButton(text: "7", action: {addValue(addText: "7", to: $mainText)})
-                    TipicalButton(text: "8", action: {addValue(addText: "8", to: $mainText)})
-                    TipicalButton(text: "9", action: {addValue(addText: "9", to: $mainText)})
-                    TipicalButton(text: "/", action: {addValue(addText: "/", to: $mainText)})
-                    
-                    
-                }
-                HStack
-                {
-                    TipicalButton(text: "4", action: {addValue(addText: "4", to: $mainText)})
-                    TipicalButton(text: "5", action: {addValue(addText: "5", to: $mainText)})
-                    TipicalButton(text: "6", action: {addValue(addText: "6", to: $mainText)})
-                    TipicalButton(text: "*", action: {addValue(addText: "*", to: $mainText)})
-                }
-                HStack
-                {
-                    TipicalButton(text: "1", action: {addValue(addText: "1", to: $mainText)})
-                    TipicalButton(text: "2", action: {addValue(addText: "2", to: $mainText)})
-                    TipicalButton(text: "3", action: {addValue(addText: "3", to: $mainText)})
-                    TipicalButton(text: "-", action: {addValue(addText: "-", to: $mainText)})
-                }
-                HStack
-                {
-                    
-                    TipicalButton(text: "0", action: {addValue(addText: "0", to: $mainText)})
-                    TipicalButton(text: ".", action: {addValue(addText: ".", to: $mainText)})
-                    TipicalButton(text: "=", action: {addValue(addText: "=", to: $mainText)})
-                    TipicalButton(text: "+", action: {addValue(addText: "+", to: $mainText)})
-                }
-            }
-            .frame(maxWidth: .infinity)
-            
-            
         }
-        .padding()
     }
-    
+
+    private func handleButton(_ label: String) {
+        switch label {
+        case "AC":
+            clearText(in: $mainText)
+        case "(":
+            addValue(addText: "(", to: $mainText)
+        case ")":
+            addValue(addText: ")", to: $mainText)
+        case "⌫":
+            myDropLast(in: $mainText)
+        case "=":
+            resultValue(text: $mainText)
+        default:
+            addValue(addText: label, to: $mainText)
+        }
+    }
+
+    private func colorFor(_ label: String) -> Color {
+        switch label {
+        case "AC", "⌫":
+            return .red
+        case "+", "-", "*", "/", "=":
+            return .orange
+        default:
+            return .gray
+        }
+    }
 }
 
 #Preview {
     ContentView()
 }
-    
+
