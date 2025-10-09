@@ -10,19 +10,6 @@ import AVFoundation
 import Accelerate
 import CoreGraphics
 
-enum HearingAssistError: Error {
-    case microphoneAccessDenied
-}
-
-extension HearingAssistError: LocalizedError {
-    var errorDescription: String? {
-        switch self {
-        case .microphoneAccessDenied:
-            return "Приложению требуется доступ к микрофону. Разрешите доступ в настройках."
-        }
-    }
-}
-
 /// Describes the adjustable parameters for the speech enhancement pipeline.
 struct HearingAssistSettings: Equatable {
     /// Output gain applied after the clean-up chain.
@@ -56,7 +43,6 @@ final class AudioEngineService: AudioEngineServiceProtocol {
     private let amplitudeQueue = DispatchQueue(label: "AudioEngineService.Amplitude")
 
     private var currentSettings = HearingAssistSettings.default
-    private var isTapInstalled = false
 
     var onAmplitudeUpdate: (([Float]) -> Void)?
     var onHapticUpdate: ((Float) -> Void)?
@@ -102,7 +88,6 @@ final class AudioEngineService: AudioEngineServiceProtocol {
         engine.connect(mixerNode, to: engine.mainMixerNode, format: format)
 
         mixerNode.outputVolume = currentSettings.outputVolume
-        engine.prepare()
     }
 
     func configure(settings: HearingAssistSettings) {
@@ -112,26 +97,14 @@ final class AudioEngineService: AudioEngineServiceProtocol {
     }
 
     func start() throws {
-        try ensureRecordPermission()
         try configureSession()
         installTap()
-        do {
-            try engine.start()
-        } catch {
-            if isTapInstalled {
-                mixerNode.removeTap(onBus: 0)
-                isTapInstalled = false
-            }
-            throw error
-        }
+        try engine.start()
     }
 
     func stop() {
         engine.stop()
-        if isTapInstalled {
-            mixerNode.removeTap(onBus: 0)
-            isTapInstalled = false
-        }
+        mixerNode.removeTap(onBus: 0)
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 
@@ -141,21 +114,6 @@ final class AudioEngineService: AudioEngineServiceProtocol {
         try session.setMode(.voiceChat)
         try session.setPreferredSampleRate(44100)
         try session.setActive(true, options: .notifyOthersOnDeactivation)
-    }
-
-    private func ensureRecordPermission() throws {
-        let session = AVAudioSession.sharedInstance()
-        switch session.recordPermission {
-        case .granted:
-            return
-        case .denied:
-            throw HearingAssistError.microphoneAccessDenied
-        case .undetermined:
-            session.requestRecordPermission { _ in }
-            throw HearingAssistError.microphoneAccessDenied
-        @unknown default:
-            throw HearingAssistError.microphoneAccessDenied
-        }
     }
 
     private func updateEQ() {
@@ -168,19 +126,14 @@ final class AudioEngineService: AudioEngineServiceProtocol {
 
     private func installTap() {
         let bus = 0
-        if isTapInstalled {
-            mixerNode.removeTap(onBus: bus)
-            isTapInstalled = false
-        }
+        mixerNode.removeTap(onBus: bus)
         let format = mixerNode.outputFormat(forBus: bus)
-        let targetFrameCount = max(1, Int(format.sampleRate / 20)) // 50 FPS for the equaliser
-        let frameCount = AVAudioFrameCount(targetFrameCount)
+        let frameCount = AVAudioFrameCount(format.sampleRate / 20) // 50 FPS for the equaliser
 
         mixerNode.installTap(onBus: bus, bufferSize: frameCount, format: format) { [weak self] buffer, _ in
             guard let self else { return }
             self.process(buffer: buffer)
         }
-        isTapInstalled = true
     }
 
     private func process(buffer: AVAudioPCMBuffer) {
@@ -192,25 +145,16 @@ final class AudioEngineService: AudioEngineServiceProtocol {
         vDSP_meansqv(channel, 1, &rms, vDSP_Length(frameLength))
         rms = sqrt(rms)
 
-        let barCount = 12
-        let samplesPerBar = max(1, frameLength / barCount)
+        let samplesPerBar = max(1, frameLength / 10)
         var barValues: [Float] = []
-        barValues.reserveCapacity(barCount)
+        barValues.reserveCapacity(10)
 
-        for bar in 0..<barCount {
-            let startIndex = bar * samplesPerBar
-            if startIndex >= frameLength {
-                barValues.append(0)
-                continue
-            }
-            let count = min(samplesPerBar, frameLength - startIndex)
-            if count <= 0 {
-                barValues.append(0)
-                continue
-            }
+        for index in stride(from: 0, to: frameLength, by: samplesPerBar) {
+            let count = min(samplesPerBar, frameLength - index)
+            if count <= 0 { break }
             var segmentRMS: Float = 0
-            vDSP_meansqv(channel + startIndex, 1, &segmentRMS, vDSP_Length(count))
-            barValues.append(min(1, sqrt(segmentRMS) * 4))
+            vDSP_meansqv(channel + index, 1, &segmentRMS, vDSP_Length(count))
+            barValues.append(sqrt(segmentRMS))
         }
 
         let amplitude = min(1.0, rms * 4)

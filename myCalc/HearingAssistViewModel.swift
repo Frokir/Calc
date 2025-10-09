@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import Combine
 import SwiftUI
 
 @MainActor
@@ -17,7 +18,6 @@ final class HearingAssistViewModel: ObservableObject {
             audioEngine.configure(settings: settings)
         }
     }
-    @Published private(set) var lastErrorMessage: String?
 
     private let audioEngine: AudioEngineServiceProtocol
     private let hapticService: HapticFeedbackServiceProtocol
@@ -38,8 +38,6 @@ final class HearingAssistViewModel: ObservableObject {
         audioEngine.onHapticUpdate = { [weak self] amplitude in
             self?.hapticService.play(amplitude: amplitude)
         }
-
-        audioEngine.configure(settings: settings)
     }
 
     func start() {
@@ -50,30 +48,20 @@ final class HearingAssistViewModel: ObservableObject {
             try audioEngine.start()
             withAnimation(.easeInOut(duration: 0.3)) {
                 isRunning = true
-                lastErrorMessage = nil
             }
         } catch {
             isRunning = false
-            if let localizedError = error as? LocalizedError, let description = localizedError.errorDescription {
-                lastErrorMessage = description
-            } else {
-                lastErrorMessage = error.localizedDescription
-            }
         }
     }
 
     func stop() {
-        guard isRunning else {
-            lastErrorMessage = nil
-            return
-        }
+        guard isRunning else { return }
         audioEngine.stop()
         hapticService.stop()
         withAnimation(.easeInOut(duration: 0.2)) {
             isRunning = false
             equalizerLevels = Array(repeating: 0.05, count: equalizerLevels.count)
         }
-        lastErrorMessage = nil
     }
 
     func toggle() {

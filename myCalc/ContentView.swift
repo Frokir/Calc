@@ -10,7 +10,6 @@ import SwiftUI
 struct ContentView: View {
     @StateObject private var viewModel: HearingAssistViewModel
     @State private var isSettingsPresented = false
-    @State private var alertMessage: AlertMessage?
     @Environment(\.scenePhase) private var scenePhase
 
     init(viewModel: HearingAssistViewModel = HearingAssistViewModel()) {
@@ -19,11 +18,7 @@ struct ContentView: View {
 
     var body: some View {
         ZStack {
-            LinearGradient(
-                colors: [.black, Color(red: 0.05, green: 0.1, blue: 0.15)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
+            LinearGradient(colors: [.black, Color(red: 0.05, green: 0.1, blue: 0.15)], startPoint: .topLeading, endPoint: .bottomTrailing)
                 .ignoresSafeArea()
 
             VStack(spacing: 32) {
@@ -45,20 +40,7 @@ struct ContentView: View {
             SettingsView(settings: $viewModel.settings)
                 .presentationDetents([.medium, .large])
         }
-        .onChange(of: viewModel.lastErrorMessage) { newValue in
-            guard let newValue else { return }
-            alertMessage = AlertMessage(message: newValue)
-        }
-        .alert(item: $alertMessage) { item in
-            Alert(
-                title: Text("Ошибка"),
-                message: Text(item.message),
-                dismissButton: .default(Text("OK")) {
-                    viewModel.stop()
-                }
-            )
-        }
-        .onChange(of: scenePhase) { newPhase in
+        .onChange(of: scenePhase) { _, newPhase in
             if newPhase != .active {
                 viewModel.stop()
             }
@@ -225,21 +207,17 @@ private extension CGFloat {
     }
 }
 
-private struct AlertMessage: Identifiable {
-    let id = UUID()
-    let message: String
-}
-
-#if DEBUG
-struct ContentView_Previews: PreviewProvider {
-    static var previews: some View {
-        ContentView(
-            viewModel: HearingAssistViewModel(
-                audioEngine: MockAudioEngineService(),
-                hapticService: MockHapticFeedbackService()
-            )
+#Preview {
+    #if DEBUG
+    ContentView(
+        viewModel: HearingAssistViewModel(
+            audioEngine: MockAudioEngineService(),
+            hapticService: MockHapticFeedbackService()
         )
+    )
+    .preferredColorScheme(.dark)
+    #else
+    ContentView()
         .preferredColorScheme(.dark)
-    }
+    #endif
 }
-#endif
