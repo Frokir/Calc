@@ -1,14 +1,14 @@
 //
-//  myCalcApp.swift
+//  VibroHearApp.swift
 //  myCalc
 //
-//  Created by Олег Переплётчиков on 31.07.2025.
+//  Created by OpenAI Assistant on 2024-XX-XX.
 //
 
 import SwiftUI
 
 @main
-struct myCalcApp: App {
+struct VibroHearApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
